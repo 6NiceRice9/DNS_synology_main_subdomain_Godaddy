@@ -43,7 +43,7 @@ secret="HereYourSecretAPI" # godaddy API-secret
 acme_sh_log="/root/.acme.sh/acme.sh.log" # default root path to acme.sh log file
 cert_description="azUsye" # cat /usr/syno/etc/certificate/_archive/INFO         to find foldername which belongs to $domain Certificate
 
-# no changes from here on
+# 
 # now type into DSM-terminal:
 #     touch script_godaddy.sh
 #     chmod +x script_godaddy.sh
