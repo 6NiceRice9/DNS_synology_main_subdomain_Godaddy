@@ -43,6 +43,21 @@ secret="HereYourSecretAPI" # godaddy API-secret
 acme_sh_log="/root/.acme.sh/acme.sh.log" # default root path to acme.sh log file
 cert_description="azUsye" # cat /usr/syno/etc/certificate/_archive/INFO         to find foldername which belongs to $domain Certificate
 
+# no changes from here on
+# now type into DSM-terminal:
+#     touch script_godaddy.sh
+#     chmod +x script_godaddy.sh
+#     nano script_godaddy.sh
+# copy/paste the whole main file (all 215 lines) into script_godaddy.sh
+# now type into DSM-terminal:
+#     ./script_godaddy.sh
+#
+# restart synology & Enjoy
+#
+# no changes below this point required
+##########################################################################################################################
+
+
 # renew domain cer
 renew_domain_cer=$(./acme.sh --renew --domain $domain --domain *.$domain --dns --yes-I-know-dns-manual-mode-enough-go-ahead-please --log)
 $renew_domain_cer
