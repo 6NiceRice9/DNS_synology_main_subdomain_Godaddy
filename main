@@ -1,0 +1,204 @@
+!/bin/bash
+# Based on credits from https://dokuwiki.bitaranto.ch/doku.php?id=synologyimportcertfrompfsense
+# and https://vdr.one/how-to-create-a-lets-encrypt-wildcard-certificate-on-a-synology-nas/
+# by Jürgen Gorobez
+
+# This script renew your Wildcard SSL certificates for main AND subdomains based on GoDaddy DNS provider.
+#Procedure:
+- login via SSH to your Synology DS
+- modify in each step declared changes & copy/paste separtly commands into DSM-SSH terminal
+- Step 2,3,4,5 have to be done only once
+  - because synology gives each domain family specific folder name, it will be generated once we import our domain certificate
+
+
+
+
+# Procedure:
+# 1. connet to synology via SSH
+# 2. here you will download acme.sh & register you e.mail & get TXT keys for you domain verification 
+# 2. in these steps, you have to change: YourEmail@Adress.com, YourDomain.com, *.YourDomain.com
+# 2. copy/paste the following commands into terminal:
+#    sudo -i
+#    wget https://raw.githubusercontent.com/Neilpang/acme.sh/master/acme.sh
+#    chom a+x acme.sh
+#    ./acme.sh --register-account -m YourEmail@Adress.com
+#    new_domain_cer=$(./acme.sh --issue --domain YourDomain.com --domain *.YourDomain.com --dns --yes-I-know-dns-manual-mode-enough-go-ahead-please --log)
+#    $new_domain_cer
+# 3. copy/paste the following commands into terminal AND create an empty .txt file on your local machine and name it private.txt and copy/paste the output from following command:
+# 3. in these steps, you have to change: YourDomain.com
+#    cat /root/.acme.sh/YourDomain.com/YourDomain.com.key
+# 4. copy/paste the following commands into terminal AND create an empty .txt file on your local machine and name it cer.txt and copy/paste the output from following command:
+# 4. in these steps, you have to change: YourDomain.com
+#    cat /root/.acme.sh/YourDomain.com/YourDomain.com.cer
+# 5. now you have to LOG in into you DSM GUI and Upload this certificate
+# 5. Contol Panel > Security > Certificate > Add > Add a new certificate > Import certificate > Privat Key: privat.txt > Certificate: cer.txt > Ok
+# 6. find foldername which belongs to your certificate
+#    cat /usr/syno/etc/certificate/_archive/INFO
+# 6. exchange foldername rename azUsye to your foldername in the next step
+# 7. crete a GoDaddy API-Key and change values in steps below: https://developer.godaddy.com/keys
+# 7. in these steps, you have to change: YourDomain.com, HereYourKeyAPI, HereYourSecretAPI
+domain="YourDomain.com" # godaddy DNS name
+key="HereYourKeyAPI" # godaddy API-key
+secret="HereYourSecretAPI" # godaddy API-secret
+acme_sh_log="/root/.acme.sh/acme.sh.log" # default root path to acme.sh log file
+cert_description="azUsye" # cat /usr/syno/etc/certificate/_archive/INFO         to find foldername which belongs to $domain Certificate
+
+# renew domain cer
+renew_domain_cer=$(./acme.sh --renew --domain $domain --domain *.$domain --dns --yes-I-know-dns-manual-mode-enough-go-ahead-please --log)
+$renew_domain_cer
+echo "sleeping for 120 seconds ... wait"
+sleep 120
+
+# get current/old-TXT values from record $name
+name="_acme-challenge"  # keep unchanged, required for acme SSL-verificaton
+current_txt_values=$(curl -s -X GET -H "Authorization: sso-key $key:$secret" "https://api.godaddy.com/v1/domains/$domain/records/TXT/$name")    # godaddy API request to read values wi>
+current_txt_value_0=$(echo $current_txt_values | jq -r ".[0].data")
+current_txt_value_1=$(echo $current_txt_values | jq -r ".[1].data")
+#echo "current_txt_values:" $current_txt_values
+#echo "current_txt_value_0:" $current_txt_value_0
+#echo "current_txt_value_1:" $current_txt_value_1
+echo "Getting old TXT records from your DNS-Domain"
+
+# get txt values from .acme.sh/acme.sh.log
+new_txt_values=$(grep "txt=" $acme_sh_log | grep -oP "txt='\K[^']+" | tail -2)  # get all generated TXT k in raw (incl. timestamp)
+## new_txt_values=$(awk '/txt=/{print}' $acme_sh_log | awk '{print $(7)}' | awk '{print substr($0,6,43)}') # alternative way to pick TXT values from log file
+new_txt_value_0=$(echo $new_txt_values | awk '{print $1}')      # get key 1
+new_txt_value_1=$(echo $new_txt_values | awk '{print $2}')      # get key 2
+#echo "new_txt_values:" $new_txt_values
+#echo "new_txt_value_0:" $new_txt_value_0
+#echo "new_txt_value_1:" $new_txt_value_1
+echo "looking up for new generated txt values"
+
+# delete all DNS-TXT-Records with name _acme-challenge
+deleting_keys=$(curl -i -s -X DELETE \
+"https://api.godaddy.com/v1/domains/"$domain"/records/TXT/"$name"" \
+-H "accept: application/json" \
+-H "Authorization: sso-key "$key":"$secret"")
+#echo "deleting_keys:" $deleting_keys
+echo "to be sure, deleting all TXT records from DNS with label: _acme-challenge"
+
+# create JSON body with keys
+d_body_1='[{"data":"'"$new_txt_value_0"'","name":"'"$name"'","ttl":600,"type":"TXT"}]'
+d_body_2='[{"data":"'"$new_txt_value_1"'","name":"'"$name"'","ttl":600,"type":"TXT"}]'
+#echo "data:" $d_body_1
+#echo "data:" $d_body_2
+
+# uploading new DNS-Records by godaddy-API
+upload_key_1=$(curl -i -s -X PATCH \
+"https://api.godaddy.com/v1/domains/"$domain"/records" \
+-H "accept: application/json" \
+-H "Content-Type: application/json" \
+-H "Authorization: sso-key "$key":"$secret"" \
+-d $d_body_1)
+upload_key_2=$(curl -i -s -X PATCH \
+"https://api.godaddy.com/v1/domains/"$domain"/records" \
+-H "accept: application/json" \
+-H "Content-Type: application/json" \
+-H "Authorization: sso-key "$key":"$secret"" \
+-d $d_body_2)
+#echo "upload_key_1:" $upload_key_1
+#echo "upload_key_2:" $upload_key_2
+
+# renew certificate
+./acme.sh --renew --domain $domain --domain *.$domain --dns --yes-I-know-dns-manual-mode-enough-go-ahead-please --log
+
+##################################################################	
+##################### write script file NR.1 #####################
+##################################################################
+cat > /usr/syno/etc/certificate/_archive/update-cert.sh << EOL
+#!/bin/bash
+
+UPDCERT_USAGE="Usage: ./update-cert CERT_NAME [--by-id]"
+
+CERTS_ROOTDIR=/usr/syno/etc/certificate/_archive/certs
+CERT_NAME=$1
+CERT_FILES=(cert.pem fullchain.pem privkey.pem)
+
+if [ -z $CERT_NAME ]; then
+  echo $UPDCERT_USAGE
+  exit -1
+fi
+if [[ ( -n $2 ) && ( $2 != --by-id ) ]]; then
+  echo $UPDCERT_USAGE
+  exit -1
+fi
+
+CERT_DIR=${CERTS_ROOTDIR}/$CERT_NAME
+
+for CERT_TARGET_DIR in $(python get-cert-dirs.py $CERT_NAME $2); do
+  for CERT_FILE in ${CERT_FILES[@]}; do
+    eval "cp ${CERT_DIR}/$CERT_FILE ${CERT_TARGET_DIR}/$CERT_FILE"
+	eval "chown root:root ${CERT_TARGET_DIR}/$CERT_FILE"
+	eval "chmod 600 ${CERT_TARGET_DIR}/$CERT_FILE"
+  done
+  echo
+done
+EOL
+	
+##################################################################	
+##################### write script file NR.2 #####################
+##################################################################
+cat > /usr/syno/etc/certificate/_archive/update-cert.sh << EOL
+#!/usr/bin/env python
+usage = "./get-cert-dirs.py CERT_NAME [--by-id]"
+
+system_dir = "/usr/syno/etc/certificate"
+pkg_dir = "/usr/local/etc/certificate"
+archive_dir = system_dir+"/_archive"
+info_path = archive_dir+"/INFO"
+
+import sys
+import json
+
+def parse_info(cert_name, by_description=False):
+    certs = json.loads(open(info_path).read())
+    if by_description is True:
+        cert_id = None
+        for key in certs.keys():
+            if certs[key]['desc'] == cert_name:
+                cert_id = key
+                break
+        if cert_id is None:
+            return None
+    else:
+        cert_id = cert_name
+    try:
+        cert_info = certs[cert_id]
+    except KeyError:
+        return None
+
+    paths = ["\"{}/{}\"".format(archive_dir, cert_id)]
+    for service in cert_info['services']:
+        root_dir = pkg_dir if service['isPkg'] is True else system_dir
+        path = "\"{}/{}/{}\"".format(root_dir, service['subscriber'], service['service'])
+        paths.append(path)
+
+    return paths
+
+if __name__ == "__main__":
+    wrong_usage = False
+    args_num = len(sys.argv) - 1
+    if args_num < 1:
+        wrong_usage = True
+    elif args_num == 2 and sys.argv[2] != "--by-id":
+        wrong_usage = True
+    elif args_num > 2:
+        wrong_usage = True
+    if wrong_usage is True:
+        print("Usage: "+usage)
+        sys.exit(-1)
+    cert_name = sys.argv[1]
+    by_description = True if args_num == 1 else False
+    dirs = parse_info(cert_name, by_description)
+    if dirs is not None:
+        print(" ".join(dirs))
+EOL
+
+
+# copy certificate into folder
+mkdir /usr/syno/etc/certificate/_archive/certs
+cp /root/.acme.sh/$domain/$domain.cer /usr/syno/etc/certificate/_archive/certs/$cert_description/cert.pem
+cp /root/.acme.sh/$domain/$domain.key /usr/syno/etc/certificate/_archive/certs/$cert_description/privkey.pem
+cp /root/.acme.sh/$domain/fullchain.cer /usr/syno/etc/certificate/_archive/certs/$cert_description/fullchain.pem
+
+/usr/syno/etc/certificate/_archive/update-cert.sh $cert_description
