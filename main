@@ -15,8 +15,9 @@
 
 # Procedure:
 # 1. connet to synology via SSH
+
 # 2. here you will download acme.sh & register you e.mail & get TXT keys for you domain verification 
-# 2. in these steps, you have to change: YourEmail@Adress.com, YourDomain.com, *.YourDomain.com
+# 2. in this step, you have to change: YourEmail@Adress.com, YourDomain.com, *.YourDomain.com
 # 2. copy/paste the following commands into terminal:
 #    sudo -i
 #    wget https://raw.githubusercontent.com/Neilpang/acme.sh/master/acme.sh
@@ -24,17 +25,22 @@
 #    ./acme.sh --register-account -m YourEmail@Adress.com
 #    new_domain_cer=$(./acme.sh --issue --domain YourDomain.com --domain *.YourDomain.com --dns --yes-I-know-dns-manual-mode-enough-go-ahead-please --log)
 #    $new_domain_cer
+
 # 3. copy/paste the following commands into terminal AND create an empty .txt file on your local machine and name it private.txt and copy/paste the output from following command:
-# 3. in these steps, you have to change: YourDomain.com
+# 3. in this step, you have to change: YourDomain.com
 #    cat /root/.acme.sh/YourDomain.com/YourDomain.com.key
+
 # 4. copy/paste the following commands into terminal AND create an empty .txt file on your local machine and name it cer.txt and copy/paste the output from following command:
-# 4. in these steps, you have to change: YourDomain.com
+# 4. in this step, you have to change: YourDomain.com
 #    cat /root/.acme.sh/YourDomain.com/YourDomain.com.cer
+
 # 5. now you have to LOG in into you DSM GUI and Upload this certificate
 # 5. Contol Panel > Security > Certificate > Add > Add a new certificate > Import certificate > Privat Key: privat.txt > Certificate: cer.txt > Ok
+
 # 6. find foldername which belongs to your certificate
 #    cat /usr/syno/etc/certificate/_archive/INFO
-# 6. exchange foldername rename azUsye to your foldername in the next step
+# 6. find in JSON type file, which contain your YourDOmain.com something like "azUsye" and use this in step 7. for "cert_description" value
+
 # 7. crete a GoDaddy API-Key and change values in steps below: https://developer.godaddy.com/keys
 # 7. in these steps, you have to change: YourDomain.com, HereYourKeyAPI, HereYourSecretAPI
 domain="YourDomain.com" # godaddy DNS name
@@ -44,15 +50,15 @@ acme_sh_log="/root/.acme.sh/acme.sh.log" # default root path to acme.sh log file
 cert_description="azUsye" # cat /usr/syno/etc/certificate/_archive/INFO         to find foldername which belongs to $domain Certificate
 
 # 
-# now type into DSM-terminal:
-#     touch script_godaddy.sh
-#     chmod +x script_godaddy.sh
-#     nano script_godaddy.sh
-# copy/paste the whole main file (all 215 lines) into script_godaddy.sh
-# now type into DSM-terminal:
-#     ./script_godaddy.sh
+# 8. now type into DSM-terminal:
+#    touch script_godaddy.sh
+#    chmod +x script_godaddy.sh
+#    nano script_godaddy.sh
+# 9. copy/paste the whole main file (all 215 lines) into script_godaddy.sh
+# 9. now type into DSM-terminal:
+#    ./script_godaddy.sh
 #
-# restart synology & Enjoy
+# 10. restart synology & Enjoy
 #
 # no changes below this point required
 ##########################################################################################################################
